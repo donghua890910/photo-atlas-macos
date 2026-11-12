@@ -1,0 +1,15 @@
+Photo Atlas
+
+1. 将 Photo Atlas 拖到 Applications。
+2. 打开应用并按系统提示允许访问照片和控制照片应用。
+3. 确认本机 Ollama 已运行并安装 qwen3-vl:4b-instruct。
+4. 在「智能扫描」选择范围并开始，或继续已有队列。
+5. 人物和地点候选需要 Python 虚拟环境与 osxphotos，详见 README.md。
+
+Photo Atlas
+
+1. Drag Photo Atlas to Applications.
+2. Open the app and allow Photos access and automation when prompted.
+3. Start Ollama and install qwen3-vl:4b-instruct.
+4. Select a scan scope and start, or resume an existing queue.
+5. Person and location candidates require a Python environment and osxphotos. See README.md.
