@@ -5,6 +5,9 @@ import AtlasCore
     static private(set) var support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Photo Atlas", isDirectory: true)
     static private(set) var isUITest = false
     static var database: URL { support.appendingPathComponent("atlas.sqlite") }
+    static var workerExecutable: URL {
+        Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/PhotoAtlasWorker")
+    }
 
     static func configure(arguments: [String]) throws {
         let environmentPath = ProcessInfo.processInfo.environment["PHOTO_ATLAS_UI_TEST_DATA"]

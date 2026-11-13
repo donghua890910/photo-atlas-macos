@@ -7,9 +7,14 @@ import Photos
     @Published private(set) var progress: ScanProgress?
     @Published private(set) var message = "开始扫描后，符合条件的 AI 结果将自动写入照片。"
     @Published private(set) var workerRunning = false
+    @Published private(set) var recovering = false
+    @Published private(set) var waitingForOperation = false
+    @Published private(set) var noRecentProgress = false
     @Published private(set) var preparingAccess = false
     @Published private(set) var accessReady = false
     private var child: Process?
+    private var lastProgressKey: String?
+    private var lastProgressTime = Date()
     let database = AppEnvironment.database
 
     var canResume: Bool {
@@ -18,6 +23,9 @@ import Photos
     }
 
     var status: String {
+        if recovering { return "正在恢复后台" }
+        if waitingForOperation { return "等待当前操作，超时将自动恢复" }
+        if noRecentProgress { return "较长时间没有新结果，后台正在重试" }
         if workerRunning { return progress?.enabled == true ? "正在扫描" : "正在保存后暂停" }
         if (progress?.uncertainWrites ?? 0) > 0 { return "有写入需要核验" }
         if progress?.outstanding == 0 { return "队列空闲" }
@@ -26,8 +34,25 @@ import Photos
 
     func refresh() {
         do {
-            progress = try Store(url: database).scanProgress()
-            workerRunning = WorkerLease.isHeld(directory: database.deletingLastPathComponent())
+            let store = try Store(url: database)
+            progress = try store.scanProgress()
+            let directory = database.deletingLastPathComponent()
+            let worker = WorkerLease.isHeld(directory: directory)
+            let supervisor = WorkerLease.isHeld(directory: directory, name: WorkerSupervisor.leaseName)
+            workerRunning = worker || supervisor
+            recovering = supervisor && !worker && progress?.enabled == true
+            let modified = try? FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent("worker-heartbeat").path)[.modificationDate] as? Date
+            waitingForOperation = supervisor && worker && progress?.enabled == true && (modified.map { Date().timeIntervalSince($0) > 300 } ?? false)
+            if let progress, progress.enabled && workerRunning {
+                let verified = try store.statistics().verifiedWrites
+                let key = "\(progress.done):\(progress.indexed):\(verified)"
+                if key != lastProgressKey { lastProgressKey = key; lastProgressTime = Date() }
+                noRecentProgress = Date().timeIntervalSince(lastProgressTime) > 600
+            } else {
+                lastProgressKey = nil
+                lastProgressTime = Date()
+                noRecentProgress = false
+            }
         } catch { message = "无法读取任务记录，请检查可用磁盘空间。" }
     }
 
@@ -71,21 +96,28 @@ import Photos
         }
     }
 
+    func restoreIfNeeded() {
+        guard !AppEnvironment.isUITest, (try? Store(url: database).scanEnabled()) == true else { return }
+        startWorker()
+    }
+
     private func startWorker() {
         guard !AppEnvironment.isUITest else { message = "独立界面测试不会启动真实后台。"; return }
         do {
             let db = try Store(url: database)
             try DiskSpace.read(at: database.deletingLastPathComponent()).requireCapacity()
-            guard let executable = Bundle.main.executableURL else { throw StoreError.invalidInput }
+            let executable = AppEnvironment.workerExecutable
+            guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw StoreError.invalidInput }
             try db.setScanEnabled(true)
-            if WorkerLease.isHeld(directory: database.deletingLastPathComponent()) || child?.isRunning == true {
+            let directory = database.deletingLastPathComponent()
+            if WorkerLease.isHeld(directory: directory) || WorkerLease.isHeld(directory: directory, name: WorkerSupervisor.leaseName) || child?.isRunning == true {
                 message = "后台正在处理队列。"
                 refresh()
                 return
             }
             let process = Process()
             process.executableURL = executable
-            process.arguments = ["--worker", database.path]
+            process.arguments = ["--supervisor", database.path]
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
             process.terminationHandler = { [weak self] process in
@@ -114,8 +146,17 @@ import Photos
         child = nil
         do {
             let db = try Store(url: database)
-            if status != 4 { try db.setScanEnabled(false) }
             refresh()
+            let enabled = try db.scanEnabled()
+            if status != 4 && enabled {
+                message = "后台中断，正在自动恢复。"
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 10_000_000_000)
+                    guard let self, (try? Store(url: self.database).scanEnabled()) == true else { return }
+                    self.startWorker()
+                }
+                return
+            }
             switch status {
             case 0:
                 if (progress?.uncertainWrites ?? 0) > 0 {

@@ -7,7 +7,15 @@ public enum WorkerRunner {
     public static func run(database url: URL) async -> Int32 {
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         guard status == .authorized || status == .limited else { return 2 }
-        guard let script = Bundle.main.resourceURL?.appendingPathComponent("people_index.py") else { return 3 }
+        let helper = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
+        let script: URL
+        if Bundle.main.bundleIdentifier != nil, let resources = Bundle.main.resourceURL {
+            script = resources.appendingPathComponent("people_index.py")
+        } else {
+            script = helper.deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("Resources/people_index.py")
+        }
+        guard FileManager.default.isReadableFile(atPath: script.path) else { return 3 }
         let client = PeopleClient(executable: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("AI-Photo-Manager/.venv/bin/python"), script: script)
         let outcome = await runAuthorized(database: url, client: client)
         await client.stop()
@@ -20,9 +28,12 @@ public enum WorkerRunner {
             guard let lease = WorkerLease(directory: url.deletingLastPathComponent()) else { return 4 }
             defer { withExtendedLifetime(lease) {} }
             let control = try Store(url: url)
-            defer { try? control.setScanEnabled(false) }
             guard try control.scanEnabled() else { return 0 }
+            let directory = url.deletingLastPathComponent()
+            WorkerSupervisor.heartbeat(directory: directory, stage: "恢复任务")
             try control.recoverInterruptedTasks()
+            let activity = ProcessInfo.processInfo.beginActivity(options: .userInitiated, reason: "Run a user-requested photo scan")
+            defer { ProcessInfo.processInfo.endActivity(activity) }
             var power: IOPMAssertionID = 0
             let assertion = IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleSystemSleep as CFString,
                                                         IOPMAssertionLevel(kIOPMAssertionLevelOn),
@@ -46,25 +57,34 @@ public enum WorkerRunner {
                     try PhotosAdapter.write(id: id, before: before, description: description, keywords: keywords)
                 }.value
             })
-            try await writing.reconcileUncertainWrites()
+            try await writing.reconcileUncertainWrites {
+                WorkerSupervisor.heartbeat(directory: directory, stage: "核验写入")
+            }
             while !Task.isCancelled {
+                WorkerSupervisor.heartbeat(directory: directory, stage: "检查队列")
                 guard try control.scanEnabled() else { break }
                 try DiskSpace.read(at: url.deletingLastPathComponent()).requireCapacity()
+                WorkerSupervisor.heartbeat(directory: directory, stage: "写入照片")
                 let writeStep = await writing.runOne()
                 if writeStep == .unavailable { return 3 }
                 if writeStep == .deferred { return 6 }
                 if writeStep == .completed || writeStep == .skipped { continue }
                 guard try control.scanEnabled() else { break }
                 try DiskSpace.read(at: url.deletingLastPathComponent()).requireCapacity()
+                WorkerSupervisor.heartbeat(directory: directory, stage: "读取人物和地点")
                 let indexStep = await indexing.runOne()
                 guard try control.scanEnabled() else { break }
                 try DiskSpace.read(at: url.deletingLastPathComponent()).requireCapacity()
+                WorkerSupervisor.heartbeat(directory: directory, stage: "识别照片")
                 let step = await engine.runOne()
                 if step == .idle && indexStep == .idle {
                     let aiRemaining = try await engine.hasOutstanding()
                     let indexRemaining = try await indexing.hasOutstanding()
                     let writeRemaining = try await writing.hasOutstanding()
-                    if !aiRemaining && !indexRemaining && !writeRemaining { break }
+                    if !aiRemaining && !indexRemaining && !writeRemaining {
+                        try control.setScanEnabled(false)
+                        break
+                    }
                 }
                 if step == .unavailable || indexStep == .unavailable { return 3 }
                 if step != .completed && step != .skipped && indexStep != .completed {

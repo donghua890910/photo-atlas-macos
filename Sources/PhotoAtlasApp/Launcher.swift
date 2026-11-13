@@ -26,7 +26,13 @@ struct Launcher {
             } catch { fputs("应用进程无法读取人物索引。\n", stderr); exit(1) }
         }
         #endif
+        if args.count == 3 && args[1] == "--supervisor" {
+            NSApplication.shared.setActivationPolicy(.prohibited)
+            guard let executable = Bundle.main.executableURL else { exit(3) }
+            exit(WorkerSupervisor.run(database: URL(fileURLWithPath: args[2]), executable: executable))
+        }
         if args.count == 3 && args[1] == "--worker" {
+            NSApplication.shared.setActivationPolicy(.prohibited)
             exit(await WorkerRunner.run(database: URL(fileURLWithPath: args[2])))
         }
         if let bundleID = Bundle.main.bundleIdentifier {

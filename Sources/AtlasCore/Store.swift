@@ -853,9 +853,14 @@ public final class Store {
     }
 
     // The worker must hold the exclusive lease before recovering another process's tasks.
-    func recoverInterruptedTasks() throws {
+    func recoverInterruptedTasks(now: Int64 = Int64(Date().timeIntervalSince1970)) throws {
+        guard now >= 0, now <= Int64.max - 3600 else { throw StoreError.invalidInput }
         try execute("BEGIN IMMEDIATE")
         do {
+            let retry = try prepare("UPDATE tasks SET next_attempt=MAX(next_attempt, ? + MIN(3600, 30 * (1 << MIN(7, MAX(0, attempts - 1))))) WHERE state='running' AND kind IN ('ai','gps')")
+            defer { sqlite3_finalize(retry) }
+            guard sqlite3_bind_int64(retry, 1, now) == SQLITE_OK else { throw dbError() }
+            try stepDone(retry)
             try recoverTaskLeases(through: Int64.max)
             try execute("COMMIT")
         } catch {

@@ -137,7 +137,7 @@ struct Dashboard: View {
             }
             }
         }
-        .task { refreshStatistics(); await migrateLegacy(); if !AppEnvironment.isUITest { _ = await scan.prepareAccess() }; await checkLibrary(request: false); await checkOllama(); await checkRequestedAsset(); await checkBackground() }
+        .task { refreshStatistics(); await migrateLegacy(); if !AppEnvironment.isUITest, await scan.prepareAccess() { scan.restoreIfNeeded() }; await checkLibrary(request: false); await checkOllama(); await checkRequestedAsset(); await checkBackground() }
         .task { await scan.monitor() }
         .onChange(of: page) { value in if value == "overview" { refreshStatistics() } }
     }
@@ -214,7 +214,8 @@ struct Dashboard: View {
             backgroundStatus = "需要照片访问权限后才能检查。"
             return
         }
-        guard let executable = Bundle.main.executableURL else {
+        let executable = AppEnvironment.workerExecutable
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             backgroundStatus = "无法定位后台程序。"
             return
         }

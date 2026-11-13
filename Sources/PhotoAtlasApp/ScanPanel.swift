@@ -37,7 +37,9 @@ struct ScanPanel: View {
                     Button("暂停") { scan.pause() }.disabled(progress?.enabled != true)
                     Button("继续已有队列") { scan.resume() }.disabled(preparing || !scan.canResume)
                 }
-                Text("暂停会在当前照片识别并保存后生效。后台进程独立运行，关闭主窗口后仍可继续；退出或重启后，可点击继续已有队列恢复。")
+                Text("暂停会在当前照片处理并保存后生效。后台进程独立运行，关闭主窗口后仍可继续；应用重新打开时会恢复之前正在运行的队列。")
+                    .font(.callout).foregroundStyle(.secondary)
+                Text("后台会监测长时间无响应的操作并自动恢复，受影响的照片稍后重试。")
                     .font(.callout).foregroundStyle(.secondary)
                 Text("AI 说明和关键词会自动写入并回读核验，包含 AI 标记为敏感的结果。手动禁止写入的照片会跳过，已有说明会保留。")
                     .font(.callout).foregroundStyle(.secondary)

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-bundle="${1:-$PWD/build/Photo Atlas 0.4.2.app}"
+bundle="${1:-$PWD/build/Photo Atlas 0.4.5.app}"
 [[ "$bundle" = /* ]] || bundle="$PWD/$bundle"
 executable="$bundle/Contents/MacOS/PhotoAtlasApp"
 if [[ -f "$executable" ]] && /usr/sbin/lsof -t "$executable" >/dev/null 2>&1; then
@@ -9,10 +9,13 @@ if [[ -f "$executable" ]] && /usr/sbin/lsof -t "$executable" >/dev/null 2>&1; th
     exit 1
 fi
 swift build -c release --product PhotoAtlasApp
-mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
+swift build -c release --product PhotoAtlasWorker
+mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents/Helpers"
 cp tools/people_index.py "$bundle/Contents/Resources/people_index.py"
 cp Resources/PhotoAtlas.icns "$bundle/Contents/Resources/PhotoAtlas.icns"
 cp .build/release/PhotoAtlasApp "$bundle/Contents/MacOS/PhotoAtlasApp"
+cp .build/release/PhotoAtlasWorker "$bundle/Contents/Helpers/PhotoAtlasWorker"
+codesign --force --sign - "$bundle/Contents/Helpers/PhotoAtlasWorker"
 cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -22,8 +25,8 @@ cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>Photo Atlas</string>
 <key>CFBundleDisplayName</key><string>Photo Atlas</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.4.2</string>
-<key>CFBundleVersion</key><string>8</string>
+<key>CFBundleShortVersionString</key><string>0.4.5</string>
+<key>CFBundleVersion</key><string>11</string>
 <key>CFBundleIconFile</key><string>PhotoAtlas</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>

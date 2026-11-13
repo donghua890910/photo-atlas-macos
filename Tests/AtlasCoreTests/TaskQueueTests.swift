@@ -2,6 +2,22 @@ import XCTest
 @testable import AtlasCore
 
 final class TaskQueueTests: XCTestCase {
+    func testInterruptedRecognitionCoolsDownAndOtherPhotosContinue() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("atlas.sqlite")
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let store = try Store(url: url)
+        try store.enqueue(assetID: "stalled", kind: .ai, priority: 10)
+        try store.enqueue(assetID: "next", kind: .ai, priority: 10)
+        let interrupted = try XCTUnwrap(store.claimNext(now: 100, leaseSeconds: 600, kind: .ai))
+        try store.recoverInterruptedTasks(now: 110)
+        XCTAssertEqual(try store.taskState(id: interrupted.id), "pending")
+        let next = try XCTUnwrap(store.claimNext(now: 111, leaseSeconds: 600, kind: .ai))
+        XCTAssertEqual(next.assetID, "next")
+        XCTAssertNil(try store.claimNext(now: 139, leaseSeconds: 600, kind: .ai))
+        let retry = try XCTUnwrap(store.claimNext(now: 140, leaseSeconds: 600, kind: .ai))
+        XCTAssertEqual(retry.assetID, "stalled")
+    }
+
     func testExpiredAILeaseCanRetryButWriteNeedsVerification() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("atlas.sqlite")
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }

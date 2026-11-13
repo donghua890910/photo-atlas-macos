@@ -22,9 +22,10 @@ public actor WriteEngine {
         return progress.pendingWrites + progress.runningWrites > 0
     }
 
-    func reconcileUncertainWrites() async throws {
+    func reconcileUncertainWrites(heartbeat: () -> Void = {}) async throws {
         for id in try store.uncertainWriteAssetIDs() {
             guard !Task.isCancelled, try store.scanEnabled() else { break }
+            heartbeat()
             try? await verifyUncertainWrite(assetID: id)
         }
     }
