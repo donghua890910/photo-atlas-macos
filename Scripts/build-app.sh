@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-bundle="${1:-$PWD/build/Photo Atlas 0.4.5.app}"
+bundle="${1:-$PWD/build/Photo Atlas 0.4.6.app}"
 [[ "$bundle" = /* ]] || bundle="$PWD/$bundle"
 executable="$bundle/Contents/MacOS/PhotoAtlasApp"
 if [[ -f "$executable" ]] && /usr/sbin/lsof -t "$executable" >/dev/null 2>&1; then
@@ -25,8 +25,8 @@ cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>Photo Atlas</string>
 <key>CFBundleDisplayName</key><string>Photo Atlas</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.4.5</string>
-<key>CFBundleVersion</key><string>11</string>
+<key>CFBundleShortVersionString</key><string>0.4.6</string>
+<key>CFBundleVersion</key><string>12</string>
 <key>CFBundleIconFile</key><string>PhotoAtlas</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>

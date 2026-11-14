@@ -37,6 +37,6 @@ final class OllamaTests: XCTestCase {
         ])
         image.unlockFocus()
         let data = try XCTUnwrap(image.tiffRepresentation)
-        XCTAssertTrue(Ollama.recognizedText(in: data).joined().contains("12345"))
+        XCTAssertTrue(try Ollama.recognizedText(in: data).joined().contains("12345"))
     }
 }

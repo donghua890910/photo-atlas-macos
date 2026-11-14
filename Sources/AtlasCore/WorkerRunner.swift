@@ -41,7 +41,9 @@ public enum WorkerRunner {
             defer { if assertion == kIOReturnSuccess { IOPMAssertionRelease(power) } }
             let engine = try ProcessingEngine(url: url, preview: { id in
                 try await LocalPreview.requiredJPEG(id: id, size: 1536)
-            }, analyze: { data in try await Ollama.infer(image: data) })
+            }, analyze: { data in
+                try await Ollama.infer(image: data, ocrExecutable: URL(fileURLWithPath: CommandLine.arguments[0]))
+            })
             let indexing = try IndexingEngine(url: url, lookup: { id in
                 let exists = await Task.detached(priority: .utility) {
                     let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject

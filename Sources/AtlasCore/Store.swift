@@ -351,6 +351,7 @@ public final class Store {
                 COMMIT;
                 """)
             }
+            try execute("CREATE INDEX IF NOT EXISTS tasks_ready_fair ON tasks(state, priority DESC, attempts, id)")
         } catch {
             sqlite3_close(db)
             db = nil
@@ -885,7 +886,7 @@ public final class Store {
         try execute("BEGIN IMMEDIATE")
         do {
             try recoverTaskLeases(through: now)
-            let select = try prepare("SELECT id,asset_id,kind FROM tasks WHERE state='pending' AND next_attempt<=? AND (? IS NULL OR kind=?) ORDER BY priority DESC,id LIMIT 1")
+            let select = try prepare("SELECT id,asset_id,kind FROM tasks WHERE state='pending' AND next_attempt<=? AND (? IS NULL OR kind=?) ORDER BY priority DESC,attempts,id LIMIT 1")
             defer { sqlite3_finalize(select) }
             guard sqlite3_bind_int64(select, 1, now) == SQLITE_OK else { throw dbError() }
             if let kind {

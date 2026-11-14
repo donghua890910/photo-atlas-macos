@@ -20,6 +20,13 @@ final class ScriptProcessTests: XCTestCase {
         XCTAssertThrowsError(try ScriptProcess.run(executable: python, arguments: ["-c", code], input: payload, timeout: 5, maximumOutput: 1024))
     }
 
+    func testLargeImageInputIsStreamedWithoutBlocking() throws {
+        let payload = Data(repeating: 65, count: 1_000_000)
+        let code = "import sys;d=sys.stdin.buffer.read();sys.stdout.write(str(len(d)))"
+        let result = try ScriptProcess.run(executable: python, arguments: ["-c", code], input: payload, timeout: 5, maximumInput: 8_000_000)
+        XCTAssertEqual(String(data: result, encoding: .utf8), "1000000")
+    }
+
     func testTimeoutKillsAndReapsScriptThatIgnoresTermination() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

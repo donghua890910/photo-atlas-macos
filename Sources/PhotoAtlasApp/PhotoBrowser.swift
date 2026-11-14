@@ -648,7 +648,7 @@ struct PhotoBrowser: View {
                 return
             }
             if selection == id { message = "正在本机识别，请稍候…" }
-            let output = try await Ollama.infer(image: image)
+            let output = try await Ollama.infer(image: image, ocrExecutable: AppEnvironment.workerExecutable)
             try db.cache(assetID: id, description: output.description, keywords: output.keywords, sensitive: output.sensitive, category: output.category)
             if selection == id {
                 result = try db.result(assetID: id)

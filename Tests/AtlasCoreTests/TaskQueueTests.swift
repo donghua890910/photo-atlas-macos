@@ -2,6 +2,19 @@ import XCTest
 @testable import AtlasCore
 
 final class TaskQueueTests: XCTestCase {
+    func testUntriedPhotosRunBeforeRepeatedFailuresAtSamePriority() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("atlas.sqlite")
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let store = try Store(url: url)
+        try store.enqueue(assetID: "retry", kind: .ai, priority: 10)
+        try store.enqueue(assetID: "new", kind: .ai, priority: 10)
+        let failed = try XCTUnwrap(store.claimNext(now: 100, leaseSeconds: 600, kind: .ai))
+        try store.failTask(id: failed.id, token: failed.token, now: 101)
+        let next = try XCTUnwrap(store.claimNext(now: 200, leaseSeconds: 600, kind: .ai))
+        XCTAssertEqual(next.assetID, "new")
+        let retry = try XCTUnwrap(store.claimNext(now: 201, leaseSeconds: 600, kind: .ai))
+        XCTAssertEqual(retry.assetID, "retry")
+    }
     func testInterruptedRecognitionCoolsDownAndOtherPhotosContinue() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("atlas.sqlite")
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }

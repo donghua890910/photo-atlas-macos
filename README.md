@@ -34,11 +34,11 @@ python3 -m venv ~/AI-Photo-Manager/.venv
 Scripts/build-app.sh
 ```
 
-构建完成后打开 `build/Photo Atlas 0.4.5.app`，按系统提示授权照片访问与照片自动化。在「智能扫描」选择范围后启动，已有队列可点击「继续已有队列」。也可运行 `Scripts/package-dmg.sh` 制作安装镜像。
+构建完成后打开 `build/Photo Atlas 0.4.6.app`，按系统提示授权照片访问与照片自动化。在「智能扫描」选择范围后启动，已有队列可点击「继续已有队列」。也可运行 `Scripts/package-dmg.sh` 制作安装镜像。
 
 ### 后台运行与当前限制
 
-扫描和监护进程声明为用户启动的系统活动，并在扫描时防止系统空闲睡眠。监护进程会重启长时间无响应的处理进程；识别和索引任务会重试，不确定的照片写入会先核验。重启电脑后，需要打开应用恢复之前的队列。长时间无人值守的连续运行仍需进一步验证。
+扫描和监护进程声明为用户启动的系统活动，并在扫描时防止系统空闲睡眠。监护进程会重启长时间无响应的处理进程；识别和索引任务会重试，不确定的照片写入会先核验。重启电脑后，需要打开应用恢复之前的队列。文字识别在独立进程中运行，超时后照片会排队重试；同优先级下，尚未尝试的照片先于反复失败的照片处理。长时间无人值守的连续运行仍需进一步验证。
 
 ### 数据与使用
 
@@ -69,11 +69,11 @@ python3 -m venv ~/AI-Photo-Manager/.venv
 Scripts/build-app.sh
 ```
 
-Open `build/Photo Atlas 0.4.5.app` and grant Photos and automation access when prompted. Choose a scan scope in the scan view, or resume an existing queue. Run `Scripts/package-dmg.sh` to create a disk image.
+Open `build/Photo Atlas 0.4.6.app` and grant Photos and automation access when prompted. Choose a scan scope in the scan view, or resume an existing queue. Run `Scripts/package-dmg.sh` to create a disk image.
 
 ### Background operation and current limits
 
-The scan and supervisor processes declare a user-initiated activity and prevent idle system sleep while scanning. The supervisor restarts an unresponsive worker; interrupted recognition and indexing tasks are retried, while uncertain photo writes are verified first. After a computer restart, open the app to resume the queue. Extended unattended operation still requires further validation.
+The scan and supervisor processes declare a user-initiated activity and prevent idle system sleep while scanning. The supervisor restarts an unresponsive worker; interrupted recognition and indexing tasks are retried, while uncertain photo writes are verified first. After a computer restart, open the app to resume the queue. Text recognition runs in a separate process with a timeout and retries; untried photos take precedence over repeatedly failing photos at the same priority. Extended unattended operation still requires further validation.
 
 ### Data and usage
 

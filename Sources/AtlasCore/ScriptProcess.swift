@@ -4,8 +4,9 @@ import Darwin
 /// Pumps both pipes while the script runs so output cannot block process completion.
 enum ScriptProcess {
     static func run(executable: URL, arguments: [String], input: Data, timeout: TimeInterval = 25,
-                    maximumOutput: Int = 1_048_576) throws -> Data {
-        guard timeout.isFinite, timeout > 0, timeout <= 120, (1...8_388_608).contains(maximumOutput), input.count <= 16_000 else { throw StoreError.invalidInput }
+                    maximumOutput: Int = 1_048_576, maximumInput: Int = 16_000) throws -> Data {
+        guard timeout.isFinite, timeout > 0, timeout <= 120, (1...8_388_608).contains(maximumOutput),
+              (1...8_000_000).contains(maximumInput), input.count <= maximumInput else { throw StoreError.invalidInput }
         let process = Process(), stdin = Pipe(), stdout = Pipe()
         process.executableURL = executable
         process.arguments = arguments

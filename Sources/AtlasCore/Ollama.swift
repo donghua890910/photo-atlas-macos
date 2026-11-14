@@ -45,7 +45,7 @@ public enum Ollama {
         return try AIResult.parse(content)
     }
 
-    public static func infer(image: Data) async throws -> AIResult {
+    public static func infer(image: Data, ocrExecutable: URL? = nil) async throws -> AIResult {
         let config = URLSessionConfiguration.ephemeral
         config.connectionProxyDictionary = [:]
         let session = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
@@ -55,7 +55,14 @@ public enum Ollama {
             throw URLError(.badServerResponse)
         }
         let result = try parseResponse(data)
-        let lines = await Task.detached(priority: .utility) { recognizedText(in: image) }.value
+        let lines = try await Task.detached(priority: .utility) {
+            if let ocrExecutable {
+                let output = try ScriptProcess.run(executable: ocrExecutable, arguments: ["--ocr"], input: image,
+                                                   timeout: 45, maximumOutput: 32_768, maximumInput: 8_000_000)
+                return try JSONDecoder().decode([String].self, from: output)
+            }
+            return try recognizedText(in: image)
+        }.value
         guard !lines.isEmpty else { return result }
         let text = lines.joined(separator: "\n")
         var keywords = result.keywords
@@ -72,13 +79,13 @@ public enum Ollama {
                         keywords: keywords, sensitive: result.sensitive, category: result.category)
     }
 
-    static func recognizedText(in image: Data) -> [String] {
+    public static func recognizedText(in image: Data) throws -> [String] {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.recognitionLanguages = ["zh-Hans", "en-US"]
         request.usesLanguageCorrection = true
         let handler = VNImageRequestHandler(data: image)
-        guard (try? handler.perform([request])) != nil else { return [] }
+        try handler.perform([request])
         var remaining = 2000
         var lines: [String] = []
         for observation in request.results ?? [] {
