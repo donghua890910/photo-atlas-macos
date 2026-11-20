@@ -46,23 +46,24 @@ public enum Ollama {
     }
 
     public static func infer(image: Data, ocrExecutable: URL? = nil) async throws -> AIResult {
+        let modelRequest = try request(image: image)
+        async let isolatedLines = recognizeInHelper(image: image, executable: ocrExecutable)
         let config = URLSessionConfiguration.ephemeral
         config.connectionProxyDictionary = [:]
+        config.timeoutIntervalForResource = 200
         let session = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
-        let (data, response) = try await session.data(for: request(image: image))
+        let (data, response) = try await session.data(for: modelRequest)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
         let result = try parseResponse(data)
-        let lines = try await Task.detached(priority: .utility) {
-            if let ocrExecutable {
-                let output = try ScriptProcess.run(executable: ocrExecutable, arguments: ["--ocr"], input: image,
-                                                   timeout: 45, maximumOutput: 32_768, maximumInput: 8_000_000)
-                return try JSONDecoder().decode([String].self, from: output)
-            }
-            return try recognizedText(in: image)
-        }.value
+        let lines: [String]
+        if let recognized = try await isolatedLines {
+            lines = recognized
+        } else {
+            lines = try await Task.detached(priority: .utility) { try recognizedText(in: image) }.value
+        }
         guard !lines.isEmpty else { return result }
         let text = lines.joined(separator: "\n")
         var keywords = result.keywords
@@ -77,6 +78,15 @@ public enum Ollama {
         }
         return AIResult(description: result.description + "\n照片文字：\n" + text,
                         keywords: keywords, sensitive: result.sensitive, category: result.category)
+    }
+
+    private static func recognizeInHelper(image: Data, executable: URL?) async throws -> [String]? {
+        guard let executable else { return nil }
+        return try await Task.detached(priority: .utility) {
+            let output = try ScriptProcess.run(executable: executable, arguments: ["--ocr"], input: image,
+                                               timeout: 45, maximumOutput: 32_768, maximumInput: 8_000_000)
+            return try JSONDecoder().decode([String].self, from: output)
+        }.value
     }
 
     public static func recognizedText(in image: Data) throws -> [String] {

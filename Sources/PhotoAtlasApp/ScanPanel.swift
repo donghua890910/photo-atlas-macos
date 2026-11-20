@@ -17,6 +17,17 @@ struct ScanPanel: View {
                 Text("智能扫描").font(.largeTitle.bold())
                 Text(scan.status).font(.headline)
                 Text(message).foregroundStyle(.secondary)
+                if let progress {
+                    let total = progress.done + progress.pending + progress.running + progress.skipped
+                    if total > 0 {
+                        ProgressView(value: Double(progress.done), total: Double(total)) {
+                            Text("已生成 \(progress.done.formatted()) / \(total.formatted()) 张")
+                        } currentValueLabel: {
+                            Text((Double(progress.done) / Double(total)).formatted(.percent.precision(.fractionLength(1))))
+                                .monospacedDigit()
+                        }
+                    }
+                }
                 HStack {
                     StatCard(title: "等待识别", value: String(progress?.pending ?? 0), symbol: "tray")
                     StatCard(title: "处理中", value: String(progress?.running ?? 0), symbol: "sparkles")
@@ -37,7 +48,7 @@ struct ScanPanel: View {
                     Button("暂停") { scan.pause() }.disabled(progress?.enabled != true)
                     Button("继续已有队列") { scan.resume() }.disabled(preparing || !scan.canResume)
                 }
-                Text("暂停会在当前照片处理并保存后生效。后台进程独立运行，关闭主窗口后仍可继续；应用重新打开时会恢复之前正在运行的队列。")
+                Text("识别和元数据处理可同时推进。暂停会等待正在处理的任务保存，关闭主窗口后后台仍可继续。")
                     .font(.callout).foregroundStyle(.secondary)
                 Text("后台会监测长时间无响应的操作并自动恢复，受影响的照片稍后重试。")
                     .font(.callout).foregroundStyle(.secondary)
@@ -46,7 +57,6 @@ struct ScanPanel: View {
             }.padding(32)
         }
         .navigationTitle("智能扫描")
-        .task { await scan.monitor() }
     }
 
     @MainActor private func start() async {

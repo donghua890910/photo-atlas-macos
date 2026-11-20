@@ -63,23 +63,28 @@ public enum WorkerRunner {
                 WorkerSupervisor.heartbeat(directory: directory, stage: "核验写入")
             }
             while !Task.isCancelled {
-                WorkerSupervisor.heartbeat(directory: directory, stage: "检查队列")
                 guard try control.scanEnabled() else { break }
-                try DiskSpace.read(at: url.deletingLastPathComponent()).requireCapacity()
-                WorkerSupervisor.heartbeat(directory: directory, stage: "写入照片")
-                let writeStep = await writing.runOne()
+                try DiskSpace.read(at: directory).requireCapacity()
+                WorkerSupervisor.heartbeat(directory: directory, stage: "识别照片与更新元数据")
+                async let recognition = engine.runOne()
+                var writeStep = WorkerStep.idle
+                var wrote = false
+                // Preparing a snapshot and writing it are two steps. Keep one writer
+                // and limit backlog work per round so it cannot monopolize the scan.
+                for _ in 0..<3 {
+                    guard try control.scanEnabled() else { break }
+                    try DiskSpace.read(at: directory).requireCapacity()
+                    writeStep = await writing.runOne()
+                    guard writeStep == .completed || writeStep == .skipped else { break }
+                    wrote = true
+                }
+                let indexStep = try control.scanEnabled() && writeStep != .unavailable && writeStep != .deferred
+                    ? await indexing.runOne() : .idle
+                let step = await recognition
                 if writeStep == .unavailable { return 3 }
                 if writeStep == .deferred { return 6 }
-                if writeStep == .completed || writeStep == .skipped { continue }
                 guard try control.scanEnabled() else { break }
-                try DiskSpace.read(at: url.deletingLastPathComponent()).requireCapacity()
-                WorkerSupervisor.heartbeat(directory: directory, stage: "读取人物和地点")
-                let indexStep = await indexing.runOne()
-                guard try control.scanEnabled() else { break }
-                try DiskSpace.read(at: url.deletingLastPathComponent()).requireCapacity()
-                WorkerSupervisor.heartbeat(directory: directory, stage: "识别照片")
-                let step = await engine.runOne()
-                if step == .idle && indexStep == .idle {
+                if step == .idle && indexStep == .idle && !wrote {
                     let aiRemaining = try await engine.hasOutstanding()
                     let indexRemaining = try await indexing.hasOutstanding()
                     let writeRemaining = try await writing.hasOutstanding()
@@ -89,7 +94,7 @@ public enum WorkerRunner {
                     }
                 }
                 if step == .unavailable || indexStep == .unavailable { return 3 }
-                if step != .completed && step != .skipped && indexStep != .completed {
+                if step != .completed && step != .skipped && indexStep != .completed && !wrote {
                     for _ in 0..<20 {
                         guard try control.scanEnabled() else { return 0 }
                         try await Task.sleep(nanoseconds: 1_000_000_000)

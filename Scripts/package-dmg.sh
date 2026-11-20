@@ -2,8 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-bundle="${1:-$PWD/build/Photo Atlas 0.4.6.app}"
-output="${2:-$PWD/build/Photo Atlas 0.4.6.dmg}"
+bundle="${1:-$PWD/build/Photo Atlas 0.4.7.app}"
+output="${2:-$PWD/build/Photo Atlas 0.4.7.dmg}"
 [[ "$bundle" = /* ]] || bundle="$PWD/$bundle"
 [[ "$output" = /* ]] || output="$PWD/$output"
 if [[ -e "$output" || -L "$output" ]]; then

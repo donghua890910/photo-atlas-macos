@@ -9,6 +9,12 @@ Photo Atlas uses a local vision model and system text recognition to generate ca
 
 [中文说明](#中文说明) · [English](#english)
 
+![Photo Atlas 智能扫描界面，使用模拟队列 / Smart Scan with a simulated queue](docs/screenshots/smart-scan.png)
+
+[处理记录截图 / Processing history screenshot](docs/screenshots/records.png)
+
+截图使用模拟数据。 · Screenshots use synthetic data.
+
 ## 中文说明
 
 ### 功能
@@ -34,11 +40,17 @@ python3 -m venv ~/AI-Photo-Manager/.venv
 Scripts/build-app.sh
 ```
 
-构建完成后打开 `build/Photo Atlas 0.4.6.app`，按系统提示授权照片访问与照片自动化。在「智能扫描」选择范围后启动，已有队列可点击「继续已有队列」。也可运行 `Scripts/package-dmg.sh` 制作安装镜像。
+构建完成后打开 `build/Photo Atlas 0.4.7.app`，按系统提示授权照片访问与照片自动化。在「智能扫描」选择范围后启动，已有队列可点击「继续已有队列」。也可运行 `Scripts/package-dmg.sh` 制作安装镜像。
+
+### 0.4.7 扫描性能
+
+- 在同一轮处理中，模型推理、独立进程文字识别与上一批结果的写入核验可以重叠。照片写入仍逐张执行，保留原始快照和回读检查。
+- 按任务类型直接查询队列。使用 6 万条模拟识别和索引任务时，检查是否有待写入任务的查询中位耗时由约 6 毫秒降至约 0.001 毫秒。这是单条数据库查询的耗时。
+- 扫描页显示已生成数量、队列总数和比例。大图库的总耗时仍取决于本地模型、预览下载和机器实际运行时长。
 
 ### 后台运行与当前限制
 
-扫描和监护进程声明为用户启动的系统活动，并在扫描时防止系统空闲睡眠。监护进程会重启长时间无响应的处理进程；识别和索引任务会重试，不确定的照片写入会先核验。重启电脑后，需要打开应用恢复之前的队列。文字识别在独立进程中运行，超时后照片会排队重试；同优先级下，尚未尝试的照片先于反复失败的照片处理。长时间无人值守的连续运行仍需进一步验证。
+扫描和监护进程声明为用户启动的系统活动，并在扫描时防止系统空闲睡眠。监护进程会重启长时间无响应的处理进程；识别和索引任务会重试，不确定的照片写入会先核验。重启电脑后，需要打开应用恢复之前的队列。文字识别在独立进程中运行，超时后照片会排队重试；同优先级下，尚未尝试的照片先于反复失败的照片处理。监护超时按包含系统睡眠的单调时钟计算，Mac 恢复运行后可检查是否已超时。长时间关屏运行仍需进一步验证。
 
 ### 数据与使用
 
@@ -69,11 +81,17 @@ python3 -m venv ~/AI-Photo-Manager/.venv
 Scripts/build-app.sh
 ```
 
-Open `build/Photo Atlas 0.4.6.app` and grant Photos and automation access when prompted. Choose a scan scope in the scan view, or resume an existing queue. Run `Scripts/package-dmg.sh` to create a disk image.
+Open `build/Photo Atlas 0.4.7.app` and grant Photos and automation access when prompted. Choose a scan scope in the scan view, or resume an existing queue. Run `Scripts/package-dmg.sh` to create a disk image.
+
+### Scan performance in 0.4.7
+
+- Model inference, OCR in a separate process, and write verification for earlier results can overlap. Writes still run one photo at a time with an original metadata snapshot and readback verification.
+- The queue now looks up jobs by type. In a benchmark with 60,000 synthetic recognition and indexing jobs, the median lookup for an empty write queue dropped from about 6 ms to 0.001 ms. This measures one database query.
+- Smart Scan shows generated results, the total queue size, and a percentage. Full-library scan time depends on the local model, preview downloads, and time the Mac spends processing.
 
 ### Background operation and current limits
 
-The scan and supervisor processes declare a user-initiated activity and prevent idle system sleep while scanning. The supervisor restarts an unresponsive worker; interrupted recognition and indexing tasks are retried, while uncertain photo writes are verified first. After a computer restart, open the app to resume the queue. Text recognition runs in a separate process with a timeout and retries; untried photos take precedence over repeatedly failing photos at the same priority. Extended unattended operation still requires further validation.
+The scan and supervisor processes declare a user-initiated activity and prevent idle system sleep while scanning. The supervisor restarts an unresponsive worker; interrupted recognition and indexing tasks are retried, while uncertain photo writes are verified first. After a computer restart, open the app to resume the queue. Text recognition runs in a separate process with a timeout and retries; untried photos take precedence over repeatedly failing photos at the same priority. The watchdog uses a monotonic clock that includes system sleep, so it can check for a stale worker when the Mac is running again. Extended operation with the display off still requires further validation.
 
 ### Data and usage
 

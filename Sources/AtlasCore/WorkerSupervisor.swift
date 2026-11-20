@@ -36,6 +36,7 @@ public enum WorkerSupervisor {
             let control = try Store(url: database)
             let heartbeatFile = directory.appendingPathComponent(heartbeatName)
             defer { try? FileManager.default.removeItem(at: heartbeatFile) }
+            let clock = ContinuousClock()
             var failures = 0
             while try control.scanEnabled() {
                 heartbeat(directory: directory, stage: "启动后台")
@@ -46,7 +47,7 @@ public enum WorkerSupervisor {
                     continue
                 }
                 var previous = try? Data(contentsOf: heartbeatFile)
-                var lastChange = ProcessInfo.processInfo.systemUptime
+                var lastChange = clock.now
                 var status: Int32 = 0
                 while true {
                     let result = waitpid(child, &status, WNOHANG)
@@ -57,9 +58,9 @@ public enum WorkerSupervisor {
                     let current = try? Data(contentsOf: heartbeatFile)
                     if current != previous {
                         previous = current
-                        lastChange = ProcessInfo.processInfo.systemUptime
+                        lastChange = clock.now
                     }
-                    if ProcessInfo.processInfo.systemUptime - lastChange >= stallSeconds {
+                    if clock.now - lastChange >= .seconds(stallSeconds) {
                         let stage = previous.flatMap { String(data: $0, encoding: .utf8) }?.split(separator: " ").first.map(String.init) ?? "未知阶段"
                         logger.error("后台操作超时，正在恢复：\(stage, privacy: .public)")
                         // Terminate the worker's process group before retrying its interrupted tasks.
